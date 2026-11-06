@@ -111,8 +111,19 @@ function renderHero(){
 }
 function renderInsights(){
  const selected=[],themes=new Set();
- for(const p of state.pairs){if(!themes.has(p.theme)){selected.push(p);themes.add(p.theme)}if(selected.length===3)break}
+ for(const p of state.pairs){if(!themes.has(p.theme)){selected.push(p);themes.add(p.theme)}if(selected.length===2)break}
+ const mover=state.rows.filter(r=>r.ready&&Number.isFinite(r.stats.sigma)).sort((a,b)=>Math.abs(b.stats.sigma)-Math.abs(a.stats.sigma))[0];
+ if(!mover&&state.pairs[2])selected.push(state.pairs[2]);
  $('#insight-cards').innerHTML=selected.map((p,i)=>`<article class="insight-card" data-pair="${i}" tabindex="0" role="button" aria-label="查看${escape(p.title)}完整图表"><div class="insight-top"><div class="insight-kicker"><span>0${i+1} / ${escape(p.theme)}</span><span class="signal-label">${p.score.toFixed(1)}σ 尺度</span></div><h3>${escape(p.headline)}</h3><div class="insight-metric"><strong class="${signClass(p.stats.gap)}">${signed(p.stats.gap)}</strong><span>pp · ${state.period} 回报差</span></div></div><div id="insight-chart-${i}" class="mini-chart"></div><div class="insight-footer"><span>过去 3 个月 · 起点 100</span><span>${p.a} / ${p.b} <span>↗</span></span></div></article>`).join('');
+ if(mover){
+  const parentMap={XES:'XLE',IEZ:'XLE',XOP:'XLE',IEO:'XLE',IXC:'XLE',XBI:'XLV',IBB:'XLV',SOXX:'XLK',SMH:'XLK',KRE:'XLF',KBE:'XLF',ITA:'XLI',XAR:'XLI',XHB:'XLY',ITB:'XLY',QYLD:'QQQ',XYLD:'IVV',RYLD:'IWM'};
+  const parent=parentMap[mover.symbol]||(mover.category==='fixed_income'?'AGG':mover.category.startsWith('region_')?'ACWI':'IVV');
+  $('#insight-cards').insertAdjacentHTML('beforeend',`<article class="insight-card" data-mover="${escape(mover.symbol)}" tabindex="0" role="button" aria-label="查看全样本异动 ${escape(mover.symbol)}"><div class="insight-top"><div class="insight-kicker"><span>03 / 全样本异动</span><span class="signal-label">${Math.abs(mover.stats.sigma).toFixed(1)}σ 尺度</span></div><h3>${escape(mover.name)}偏离近期常态</h3><div class="insight-metric"><strong class="${signClass(mover.stats.return)}">${pct(mover.stats.return)}</strong><span>${state.period} 总回报</span></div></div><div id="mover-chart" class="mini-chart"></div><div class="insight-footer"><span>扫描全部同步日频标的</span><span>${escape(mover.symbol)} / 参考 ${parent} ↗</span></div></article>`);
+  lineChart('mover-chart',[{symbol:mover.symbol,label:mover.symbol},{symbol:parent,label:'参考 '+parent}],{range:'3M',height:155});
+  const card=$('[data-mover]');
+  card.addEventListener('click',e=>{if(!e.target.closest('[data-legend]'))openDetail(mover.symbol)});
+  card.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();openDetail(mover.symbol)}});
+ }
  selected.forEach((p,i)=>{
   lineChart('insight-chart-'+i,[{symbol:p.a,label:p.a},{symbol:p.b,label:p.b}],{range:'3M',height:155});
   const card=$(`[data-pair="${i}"]`);
