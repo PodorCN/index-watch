@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+ <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+ <meta name="theme-color" content="#152d3b">
+ <meta name="description" content="跨资产宏观研究台：自动发现 WTD、MTD、YTD 相对强弱、行业轮动与波动率尺度异动。基于免费真实数据。">
+ <title>Macro Lens · 跨资产宏观研究</title>
+ <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23152d3b'/%3E%3Cpath d='M9 28V12l11 13 11-13v16' fill='none' stroke='%23d8e7c0' stroke-width='3'/%3E%3C/svg%3E">
+ <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<aside class="sidebar">
+ <a class="brand" href="#brief" aria-label="Macro Lens 首页"><span class="brand-mark">M<span>↗</span></span><span>MACRO<span class="brand-sub">LENS / RESEARCH</span></span></a>
+ <div class="workspace-label">CROSS-ASSET INTELLIGENCE</div>
+ <nav aria-label="主导航">
+  <a class="nav-item active" href="#brief"><span class="nav-icon">◫</span>研究简报 <span class="nav-num">01</span></a>
+  <a class="nav-item" href="#rotation"><span class="nav-icon">▦</span>市场轮动 <span class="nav-num">02</span></a>
+  <a class="nav-item" href="#relative"><span class="nav-icon">⇄</span>相对强弱 <span class="nav-num">03</span></a>
+  <a class="nav-item" href="#rates"><span class="nav-icon">⌁</span>利率与信用 <span class="nav-num">04</span></a>
+  <a class="nav-item" href="#universe"><span class="nav-icon">☷</span>全部观察标的 <span class="nav-num">05</span></a>
+  <a class="nav-item" href="#private"><span class="nav-icon">◇</span>私募与替代资产</a>
+ </nav>
+ <div class="sidebar-bottom"><span class="live-dot"></span> FREE DATA · EOD<div>观察市场如何变化<br>从价格事实出发</div><button class="sidebar-method" id="open-method">数据来源与研究方法 ↗</button></div>
+</aside>
+<div class="main-shell">
+ <header class="topbar"><div class="crumb">Research desk <span>/</span> 跨资产观察</div><div class="top-actions"><span id="asof-top" class="asof">正在读取数据</span><button id="refresh" class="button secondary"><span id="refresh-icon">↻</span> 更新数据</button></div></header>
+ <main>
+  <section id="brief" class="section">
+   <div class="section-top"><div><div class="eyebrow">THE CROSS-ASSET MONITOR</div><h1>市场在定价什么<span class="accent">？</span></h1><p class="intro">从广度、风格到利率，自动发现值得追踪的分化。</p></div><div class="period-block"><label>研究窗口</label><div class="segmented" id="periods" role="group" aria-label="研究窗口"><button data-period="WTD">WTD</button><button class="selected" data-period="MTD" aria-pressed="true">MTD</button><button data-period="YTD">YTD</button></div><span class="small muted" id="window-dates">—</span></div></div>
+   <div id="update-message" class="update-message" role="status" hidden></div>
+   <div id="error-banner" class="notice error" hidden></div>
+   <div class="stats-grid" id="stats"><div class="loading-state">正在读取真实历史数据…</div></div>
+   <div class="hero-grid">
+    <article class="brief-panel"><div class="panel-eyebrow"><span class="tiny-line"></span> RESEARCH TAKEAWAY <span id="signal-badge" class="tag">自动更新</span></div><h2 id="brief-title">正在比较跨资产表现</h2><p id="brief-copy" class="brief-copy">研究结论基于实际价格与历史波动，所有图表使用完整交易日。</p><div id="brief-facts" class="brief-facts"></div><div class="brief-bottom"><span class="small">规则生成 · 不推断资金流或新闻因果</span><a href="#relative">查看证据 <span>↗</span></a></div></article>
+    <article class="panel overview-panel"><div class="panel-head"><div><div class="eyebrow">THE BIG PICTURE</div><h3>跨资产总回报轨迹</h3></div><div class="mini-tabs" id="hero-ranges"><button data-range="1M">1M</button><button data-range="3M">3M</button><button data-range="YTD" class="selected">YTD</button></div></div><div class="chart-explainer">起点 = 100 · 美元计价 · ETF 分红及拆股调整收盘价</div><div id="macro-chart" class="line-chart hero-chart"></div></article>
+   </div>
+   <div class="subsection-head"><div><span class="eyebrow">CHARTS THAT MATTER</span><h2>今天值得看的图</h2></div><span class="small muted">按相对波动尺度自动排序 · 非显著性检验</span></div>
+   <div class="insights-grid" id="insight-cards"></div>
+  </section>
+  <section id="rotation" class="section">
+   <div class="subsection-head"><div><span class="eyebrow">WHERE LEADERSHIP IS MOVING</span><h2>轮动的地图</h2></div><span id="rotation-period" class="pill">MTD · 总回报代理</span></div>
+   <div class="rotation-grid"><article class="panel sector-panel"><div class="panel-head"><div><h3>美国行业</h3><p class="small muted">11 个行业，同一市场时钟</p></div><span class="chart-unit">%</span></div><div id="sector-bars" class="bar-chart"></div></article><article class="panel region-panel"><div class="panel-head"><div><h3>国家与市场</h3><p class="small muted">美股上市 ETF · 含外汇及行业结构影响</p></div><div class="color-key"><span>弱</span><i></i><span>强</span></div></div><div id="country-heatmap" class="heatmap"></div></article></div>
+   <div class="two-columns"><article class="panel"><div class="panel-head"><div><h3>因子相对表现</h3><p class="small muted">相对 S&P 500 代理 IVV 的回报差 · 百分点</p></div><span class="tag">US FACTORS</span></div><div id="factor-bars" class="bar-chart"></div></article><article class="panel"><div class="panel-head"><div><h3>全球股票与实物资产</h3><p class="small muted">区域、黄金、基础设施及上市地产 · 总回报代理</p></div><span class="chart-unit">%</span></div><div id="global-bars" class="bar-chart"></div></article></div>
+  </section>
+  <section id="relative" class="section">
+   <div class="subsection-head"><div><span class="eyebrow">LOOK THROUGH THE HEADLINE</span><h2>相对强弱观察</h2></div><span class="small muted">统一起止日期 · 回报差以百分点计</span></div>
+   <div id="pair-grid" class="pair-grid"></div>
+  </section>
+  <section id="rates" class="section">
+   <div class="subsection-head"><div><span class="eyebrow">THE MACRO TRANSMISSION</span><h2>利率、信用与波动</h2></div><span class="pill">官方指标 · 各自发布日期</span></div>
+   <div id="risk-strip" class="risk-strip"></div>
+   <div class="two-columns"><article class="panel"><div class="panel-head"><div><h3>美债收益率曲线的两端</h3><p class="small muted" id="yield-subtitle">2 年 / 10 年 · 过去 6 个月 · %</p></div><a class="source-link" href="https://fred.stlouisfed.org/series/DGS10" target="_blank" rel="noopener noreferrer">FRED ↗</a></div><div id="yield-chart" class="line-chart risk-chart"></div></article><article class="panel"><div class="panel-head"><div><h3>信用利差：风险补偿在如何变化</h3><p class="small muted" id="credit-subtitle">高收益 / 投资级公司债 OAS · bp</p></div><a class="source-link" href="https://fred.stlouisfed.org/series/BAMLH0A0HYM2" target="_blank" rel="noopener noreferrer">FRED / ICE ↗</a></div><div id="credit-chart" class="line-chart risk-chart"></div></article></div>
+   <p class="section-footnote">收益率与利差的变化使用 bp；VIX 使用波动率点。它们与资产总回报分别展示。指标发布日期可能晚于其观察日期，图例保留各自日期。</p>
+  </section>
+  <section id="universe" class="section">
+   <div class="subsection-head"><div><span class="eyebrow">EXPLORE THE FULL UNIVERSE</span><h2>每一个观察标的，都有出处</h2></div><button id="export-csv" class="button secondary">↓ 导出当前表</button></div>
+   <article class="panel universe-panel"><div class="table-toolbar"><div class="search-wrap"><span>⌕</span><input type="search" id="search" placeholder="搜索代码、国家、因子或指数名称…" aria-label="搜索观察标的"></div><select id="category-filter" aria-label="筛选类别"><option value="all">全部类别</option></select><select id="status-filter" aria-label="筛选数据状态"><option value="daily">日频候选</option><option value="all">所有标的与参考基准</option><option value="ready">当前窗口数据完整</option><option value="reference">低频与参考基准</option><option value="starred">我的关注</option></select></div>
+   <div class="table-meta"><span id="table-count">—</span><span>点击行查看历史、指数及来源；☆ 可加入本机关注</span></div><div class="table-scroll"><table><thead><tr><th aria-label="关注"></th><th>标的 / 观察敞口</th><th>类别</th><th><button data-sort="wtd">WTD ↕</button></th><th><button data-sort="mtd">MTD ↕</button></th><th><button data-sort="ytd">YTD ↕</button></th><th><button data-sort="sigma">异动尺度 ↕</button></th><th>数据日期 / 状态</th></tr></thead><tbody id="universe-body"></tbody></table></div><div class="table-footer"><span>回报来自实际 ETF，未扣除个人税费；与对应指数表现可能有差异。</span><button id="show-more" class="text-button">显示更多 ↓</button></div></article>
+  </section>
+  <section id="private" class="section">
+   <div class="subsection-head"><div><span class="eyebrow">PRIVATE MARKETS, PUBLIC SIGNALS</span><h2>私募资产：尊重估值的时钟</h2></div><span class="pill">上市代理与私募基准分别观察</span></div>
+   <div class="private-grid"><article class="panel private-proxies"><h3>能日频观察的上市代理</h3><div id="private-proxies"></div><p class="small muted">PSP 持有上市私募股权相关公司；BIZD 持有上市 BDC 股票。它们反映上市股权价格，不等同于私募基金 NAV 或直接贷款回报。</p></article><article class="panel"><h3>私募基准资料库</h3><p class="small muted">保留实际发布频率；连续免费历史尚未验证，暂不生成 WTD／MTD 排名。</p><div id="private-references" class="private-references"></div></article></div>
+  </section>
+  <footer><a class="footer-brand" href="#brief">MACRO LENS <span>/ Research from the evidence.</span></a><div id="coverage-footer">免费数据 · 来源可查 · 日期透明</div><button class="text-button" id="footer-method">数据与研究方法 ↗</button></footer>
+ </main>
+</div>
+<dialog id="detail-dialog" class="detail-dialog"><button class="dialog-close" data-close aria-label="关闭详情">×</button><div id="detail-content"></div></dialog>
+<dialog id="method-dialog" class="method-dialog"><button class="dialog-close" data-close aria-label="关闭方法说明">×</button><div class="eyebrow">DATA & METHODOLOGY</div><h2>让每个结论都能被复核</h2><div class="method-content">
+ <h3>1 / 真实数据与更新</h3><p>235 个日频 ETF／ETP 候选使用 Yahoo Finance 公开历史行情中的 adjusted close；发行商资料用于核对基金与指数关系。VIX 等指标取自 Cboe 官方日线，利率和利差取自 FRED 官方 CSV。数据不需要付费订阅或 API key。免费来源可能限流或暂时不可用；失败时保留带日期的已验证快照。</p><p>打开网站时检查是否缺少新的完整交易日；页面打开期间每 30 分钟再检查。美东收盘后预留 20 分钟，剔除当天尚未结束的交易柱。未配置网站关闭后的后台定时任务。页面标明数据日期和抓取时间，假日以来源实际发布为准。</p>
+ <h3>2 / WTD、MTD 与 YTD</h3><p>以周／月／年开始之前最后一个有效交易日为基期，计算调整收盘价的比值变化。使用分红与拆股调整后的价格作为 ETF 总回报代理；并非官方指数总回报，亦未模拟个人税费。美元上市价格仍包含非美元市场的外汇影响。缺少基期、数据不同步或出现待核查的大幅跳变时，不进入默认异动排名。</p>
+ <h3>3 / 什么叫「有意义」</h3><p>先计算窗口回报，再用窗口开始前最多 63 个交易日的日对数收益波动进行缩放：（窗口对数收益 − 此前日均对数收益 × 窗口交易日数）÷（此前日波动率 × √窗口交易日数）。相对图使用两资产日对数收益之差的历史均值和波动。减去此前均值，以免把正常的现金／债券票息累积误判为异常行情。至少需要 40 个基准观察。2σ 是帮助研究排序的经验观察线，不是 p 值、置信度或统计显著性结论；多重比较、厚尾和波动聚集均会影响解释。</p><p>YTD 等长窗口受趋势累积影响，尺度与短窗口不能直接横向解释。规则生成的文字只描述价格事实，不自动推断资金流、政策预期或新闻因果。关注图之间的不同主题，避免把同一笔行情重复计数。</p>
+ <h3>4 / 指数、主动策略与私募</h3><p>指数与 ETF 分别保留身份。DBMF、ALLW、SRLN、CLOA 等主动基金的参考指数不代表复制目标。私募 PE／VC、CDLI、NCREIF 等基准按自身报告期观察，未把季度估值前向填充成日线。PSP／BIZD／REITs 是上市资产代理。商品期货包含换月和抵押品回报；FXY 为日元兑美元敞口，方向与 USD/JPY 报价相反。</p>
+ <h3>5 / 风险指标与发布滞后</h3><p>收益率、实际利率和信用利差原始值的单位为百分数，变化乘以 100 转成 bp。VIX 变化以波动率点计，不能当成可投资回报。FRED 各序列发布节奏不同；美元广义指数通常更滞后，独立标注日期。ICE BofA 在 FRED 的公共历史自 2026 年 4 月起通常仅保留滚动三年。收益率与信用利差不混入 ETF 涨跌排名。</p>
+ <h3>6 / 来源与使用范围</h3><p><a href="https://in.help.yahoo.com/kb/adjusted-close-sln28256.html" target="_blank" rel="noopener noreferrer">Yahoo 调整收盘价说明 ↗</a> · <a href="https://www.cboe.com/tradable-products/vix/vix-historical-data" target="_blank" rel="noopener noreferrer">Cboe 官方历史数据 ↗</a> · <a href="https://fred.stlouisfed.org/" target="_blank" rel="noopener noreferrer">FRED ↗</a> · <a href="https://www.ishares.com/us/products/etf-investments" target="_blank" rel="noopener noreferrer">iShares 官方目录 ↗</a> · <a href="https://www.ssga.com/us/en/intermediary/fund-finder" target="_blank" rel="noopener noreferrer">State Street 官方目录 ↗</a></p><p>公开可读不代表允许无限调用或再分发；遵循来源条款。研究资料用于辅助观察，不构成交易建议或已验证的因果模型。</p>
+ <div id="method-live-status" class="notice"></div>
+</div></dialog>
+<div id="chart-tooltip" class="chart-tooltip" hidden></div>
+<script type="module" src="/app.js"></script>
+</body></html>

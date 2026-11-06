@@ -1,0 +1,6 @@
+dist/
+outputs/
+*.log
+node_modules/
+__pycache__/
+data/raw/
