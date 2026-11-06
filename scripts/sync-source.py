@@ -49,6 +49,7 @@ remote_sha=run(['git','ls-remote','origin','refs/heads/'+branch]).split()[0]
 assert remote_sha==sha,'Published source HEAD must match the built commit'
 archive=Path(request['archivePath']);archive.parent.mkdir(parents=True,exist_ok=True)
 with tarfile.open(archive,'w:gz') as tar:
+    tar.add(ROOT/'.openai/hosting.json',arcname='.openai/hosting.json')
     for path in sorted((ROOT/'dist').rglob('*')):
-        if path.is_file():tar.add(path,arcname=str(path.relative_to(ROOT/'dist')))
+        if path.is_file():tar.add(path,arcname=str(path.relative_to(ROOT)))
 print(json.dumps({'project_id':manifest['project_id'],'commit_sha':sha,'archive':str(archive),'archive_bytes':archive.stat().st_size,'checkout_path':str(ROOT)}),flush=True)
