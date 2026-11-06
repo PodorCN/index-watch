@@ -1,0 +1,5 @@
+Type,Name,Content,Proxy,TTL
+A,@,162.159.143.30,DNS only,Auto
+A,@,172.66.3.26,DNS only,Auto
+TXT,_openai-site-verification,openai-site-verification=khWiOxvevVRMqBrAMEoNgjAg6OffT-lJdOil9dTsG_g,DNS only,Auto
+TXT,_cf-custom-hostname,c24ea1e2-f318-4a1a-b51f-c030bdc2e77e,DNS only,Auto

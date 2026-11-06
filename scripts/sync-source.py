@@ -1,5 +1,6 @@
 """Sites source synchronization. Credentials arrive through hidden stdin only."""
 import json,os,subprocess,sys,tarfile,termios
+from urllib.parse import urlparse
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -11,6 +12,12 @@ request=json.loads(sys.stdin.readline())
 credential=request['credential'];token=credential.get('token','')
 manifest=json.loads((ROOT/'.openai/hosting.json').read_text())
 assert manifest['project_id']==request['project_id']
+# This workflow is restricted to this existing ChatGPT Site. It cannot write
+# to github.com, a user GitHub repository, or a different Site project.
+remote=urlparse(credential['remote_url'])
+assert remote.scheme=='https' and remote.hostname=='git.chatgpt-team.site','Only the ChatGPT Sites internal source service is authorized'
+assert remote.path.endswith('/'+manifest['project_id']+'.git'),'Source repository must match this Site'
+assert credential.get('provider')=='cloudflare_artifact','This flow does not publish to GitHub'
 env=os.environ.copy();env['GIT_TERMINAL_PROMPT']='0'
 env.pop('GIT_TRACE_CURL',None);env.pop('GIT_CURL_VERBOSE',None)
 if token:
