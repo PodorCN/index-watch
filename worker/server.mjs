@@ -68,13 +68,13 @@ async function history(request,url,ctx){
  if((kind!=='series'&&kind!=='risk')||(kind==='series'?!etfSymbols.has(symbol):!Object.hasOwn(riskSources,symbol)))return json({error:'Unknown instrument'},400);
  const now=new Date(),parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'}).formatToParts(now).map(p=>[p.type,p.value]));
  const bucket=`${parts.year}-${parts.month}-${parts.day}-${Number(parts.hour)>=16?'after':'before'}`;
- const key=new Request(new URL(`/__market_cache_v1/${kind}/${symbol}/${bucket}`,url.origin));
+ const key=new Request(new URL(`/__market_cache_v2/${kind}/${symbol}/${bucket}`,url.origin));
  const cache=globalThis.caches?.default;
- if(cache){try{const cached=await cache.match(key);if(cached)return cached}catch{}}
+ if(cache){try{const cached=await cache.match(key);if(cached)return json({...await cached.json(),cacheStatus:'hit',checkedAt:now.toISOString()})}catch{}}
  try{
   const data=kind==='series'?await yahoo(symbol):await risk(symbol);
   if(data.quality!=='ok')throw new Error('Large historical price gap requires manual review');
-  const response=json(data);
+  const response=json({...data,cacheStatus:'miss',checkedAt:now.toISOString()});
   if(cache){
    const cacheResponse=new Response(JSON.stringify(data),{headers:{'content-type':'application/json','cache-control':'public,max-age=1800'}});
    const pending=cache.put(key,cacheResponse);if(ctx?.waitUntil)ctx.waitUntil(pending);else await pending;
@@ -82,7 +82,7 @@ async function history(request,url,ctx){
   return response;
  }catch(error){
   const old=(kind==='series'?SEED.series:SEED.risk)[symbol];
-  if(old?.points?.length)return json({...old,fallback:true,refreshError:String(error.message).slice(0,120),attemptedAt:now.toISOString()});
+  if(old?.points?.length)return json({...old,fallback:true,cacheStatus:'snapshot',refreshError:String(error.message).slice(0,120),attemptedAt:now.toISOString()});
   return json({symbol,error:'Public source temporarily unavailable',fallback:false},503);
  }
 }

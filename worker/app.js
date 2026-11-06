@@ -1,4 +1,4 @@
-import {LABELS,COLORS,pct,number,periodStart,periodStats,computeRows,getAsOf,pairInsights,normalized,chartStart,indicatorChange,expectedCloseDate} from '/analytics.mjs?v=2';
+import {LABELS,COLORS,pct,number,periodStart,periodStats,computeRows,getAsOf,pairInsights,normalized,chartStart,indicatorChange} from '/analytics.mjs?v=3';
 
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -6,14 +6,14 @@ const safeUrl=s=>{try{const u=new URL(s);return ['https:','http:'].includes(u.pr
 const signClass=v=>Number.isFinite(v)?v>=0?'positive':'negative':'';
 const signed=(v,d=2)=>Number.isFinite(v)?`${v>0?'+':''}${number(v,d)}`:'—';
 const date=(s,short=false)=>s?new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',...(short?{}:{year:'numeric'}),timeZone:'UTC'}).format(new Date(s.slice(0,10)+'T12:00:00Z')):'—';
-const VIEWS={overview:'Market overview',markets:'Market rotation',relative:'Relative performance',rates:'Rates & credit',universe:'Instrument universe'};
+const VIEWS={overview:'Market brief',markets:'Market rotation',relative:'Relative performance',rates:'Rates & credit',universe:'Instrument universe'};
 const SECTORS={XLK:'Technology',XLF:'Financials',XLV:'Health care',XLE:'Energy',XLC:'Communication',XLY:'Discretionary',XLP:'Staples',XLI:'Industrials',XLB:'Materials',XLU:'Utilities',XLRE:'Real estate'};
 const NAMES={IVV:'S&P 500',ACWI:'Global equities',URTH:'Developed markets',IEMG:'Emerging markets',IXUS:'Global ex-US',TLT:'20+Y Treasuries',SHY:'1–3Y Treasuries',IEF:'7–10Y Treasuries',SHV:'0–1Y Treasuries',SGOV:'0–3M Treasuries',BIL:'1–3M T-bills',GLD:'Gold',IAU:'Gold',SLV:'Silver',UUP:'US dollar',HYG:'US high yield',LQD:'US investment grade',AGG:'US aggregate bonds',RSP:'S&P 500 equal weight',QQQ:'Nasdaq-100',QQQE:'Nasdaq-100 equal weight',MTUM:'US momentum',QUAL:'US quality',VLUE:'US value factor',USMV:'US minimum volatility',SIZE:'US size factor',LRGF:'US multifactor',SPHB:'US high beta',HDV:'US high dividend',IWF:'Large-cap growth',IWD:'Large-cap value',IWM:'US small caps',IWB:'US large caps',PSP:'Listed private equity',BIZD:'Listed BDCs',XES:'Oil & gas services',IEZ:'Oil equipment & services',XOP:'Oil & gas exploration',IEO:'Oil & gas producers',XBI:'Biotechnology',IBB:'Biotechnology',SOXX:'Semiconductors',SMH:'Semiconductors',KRE:'Regional banks',KBE:'Banks',ITA:'Aerospace & defense',XAR:'Aerospace & defense',XHB:'Homebuilders',ITB:'Home construction',QYLD:'Nasdaq covered calls',XYLD:'S&P 500 covered calls',RYLD:'Russell 2000 covered calls',DBMF:'Managed futures',KMLM:'Systematic trend',REET:'Global REITs',IGF:'Global infrastructure',IEV:'Europe',EWJ:'Japan'};
 function nameFor(u){return SECTORS[u.symbol]||NAMES[u.symbol]||(u.fundName||u.benchmark||u.symbol).replace(/^(?:State Street[® ]*|iShares\s+|Invesco\s+|WisdomTree\s+|Global X\s+|VanEck\s+|SPDR[® ]*|KraneShares\s+|abrdn\s+)+/g,'').replace(/[®™℠]/g,'').replace(/\s+(?:ETF|Fund|Trust)\b/g,'').replace(/\s+/g,' ').trim()}
-const state={data:null,rows:[],pairs:[],asOf:null,period:'MTD',range:'YTD',view:'overview',query:'',category:'all',status:'daily',sort:'mtd',direction:-1,limit:45,refreshing:false,stars:new Set()};
+const state={data:null,rows:[],pairs:[],asOf:null,period:'MTD',range:'YTD',leadRange:'3M',view:'overview',query:'',category:'all',status:'daily',sort:'mtd',direction:-1,limit:45,refreshing:false,stars:new Set()};
 try{state.stars=new Set(JSON.parse(localStorage.getItem('macro-lens-stars')||'[]').filter(x=>typeof x==='string'))}catch{}
 let chartId=0;
-function lineChart(id,items,{range='3M',height=240,raw=false,unit='',shade=false,legend=true}={}){
+function lineChart(id,items,{range='3M',height=240,raw=false,unit='',shade=false,legend=true,dark=false}={}){
  const el=typeof id==='string'?document.getElementById(id):id;if(!el)return;
  const start=chartStart(state.asOf,range),end=state.asOf;
  let data=items.map((it,i)=>{
@@ -31,18 +31,19 @@ function lineChart(id,items,{range='3M',height=240,raw=false,unit='',shade=false
  const x=d=>L+(Date.parse(d)-t0)/(t1-t0||1)*iw,y=v=>T+(v1-v)/(v1-v0)*ih;
  const uid='chart-'+(++chartId);
  const tickNum=raw&&max<10?2:Math.abs(max)>500?0:1;
+ const gridColor=dark?'#38515e':'#e8edf5',axisColor=dark?'#aebfbe':'#64748b';
  let grid='';
  for(let n=0;n<5;n++){
   const v=v0+(v1-v0)*n/4,yy=y(v);
-  grid+=`<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" stroke="#e8edf5" stroke-dasharray="3 4"/><text x="${L-10}" y="${yy+4}" text-anchor="end" fill="#64748b" font-size="11">${v.toFixed(tickNum)}</text>`;
+  grid+=`<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" stroke="${gridColor}" stroke-dasharray="3 4"/><text x="${L-10}" y="${yy+4}" text-anchor="end" fill="${axisColor}" font-size="11">${v.toFixed(tickNum)}</text>`;
  }
- const baseline=!raw&&v0<100&&v1>100?`<line x1="${L}" y1="${y(100)}" x2="${W-R}" y2="${y(100)}" stroke="#d1dbea" stroke-dasharray="3 4"/>`:'';
+ const baseline=!raw&&v0<100&&v1>100?`<line x1="${L}" y1="${y(100)}" x2="${W-R}" y2="${y(100)}" stroke="${dark?'#66818a':'#d1dbea'}" stroke-dasharray="3 4"/>`:'';
  let axis='';for(let n=0;n<5;n++){
   const date=dates[Math.round(n*(dates.length-1)/4)];
-  axis+=`<text x="${x(date)}" y="${H-5}" text-anchor="${n===0?'start':n===4?'end':'middle'}" fill="#64748b" font-size="11">${date.slice(5).replace('-','/')}</text>`;
+  axis+=`<text x="${x(date)}" y="${H-5}" text-anchor="${n===0?'start':n===4?'end':'middle'}" fill="${axisColor}" font-size="11">${date.slice(5).replace('-','/')}</text>`;
  }
- const shadeDate=periodStart(state.asOf,state.period);
- const shaded=shade&&shadeDate>=dates[0]&&shadeDate<=dates.at(-1)?`<rect x="${x(shadeDate)}" y="${T}" width="${W-R-x(shadeDate)}" height="${ih}" fill="#eaf0fd" opacity=".6"/><text x="${Math.min(x(shadeDate)+5,W-41)}" y="${T+10}" fill="#8ca4d5" font-size="9">${state.period}</text>`:'';
+ const shadeDate=[periodStart(state.asOf,state.period),dates[0]].sort().at(-1);
+ const shaded=shade&&shadeDate>=dates[0]&&shadeDate<=dates.at(-1)?`<rect x="${x(shadeDate)}" y="${T}" width="${W-R-x(shadeDate)}" height="${ih}" fill="${dark?'#789799':'#eaf0fd'}" opacity="${dark?'.14':'.6'}"/><text x="${Math.min(x(shadeDate)+5,W-41)}" y="${T+10}" fill="${dark?'#b9cfcd':'#8ca4d5'}" font-size="9">${state.period}</text>`:'';
  const paths=data.map((it,i)=>`<polyline data-line="${i}" points="${it.points.map(([d,v])=>`${x(d).toFixed(2)},${y(v).toFixed(2)}`).join(' ')}" fill="none" stroke="${it.color}" stroke-width="${height<180?2.1:2.25}" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
  el.innerHTML=`<svg id="${uid}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(data.map(it=>it.label||it.symbol).join(', '))}; ${escape(dates[0])} to ${escape(dates.at(-1))}; ${raw?escape(unit):'Rebased to 100'}"><title>${escape(data.map(it=>it.label||it.symbol).join(' / '))}</title>${shaded}${grid}${baseline}${paths}${axis}<line data-crosshair x1="0" y1="${T}" x2="0" y2="${H-B}" stroke="#9cafcc" stroke-dasharray="3 3" opacity="0"/><rect x="${L}" y="${T}" width="${iw}" height="${ih}" fill="transparent" data-hit/></svg>${legend?`<div class="chart-legend">${data.map((it,i)=>`<button type="button" data-legend="${i}" title="Show or hide series" aria-pressed="true"><i class="legend-dot" style="background:${it.color}"></i>${escape(it.label||it.symbol)}</button>`).join('')}</div>`:''}`;
  const svg=el.querySelector('svg'),hit=svg.querySelector('[data-hit]'),cross=svg.querySelector('[data-crosshair]');
@@ -117,16 +118,34 @@ function render(){
  $('#benchmark-tape').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>openDetail(b.dataset.benchmark)));
  $$('#periods button').forEach(b=>{b.classList.toggle('selected',b.dataset.period===state.period);b.setAttribute('aria-pressed',String(b.dataset.period===state.period))});
  $$('[data-window-label]').forEach(e=>e.textContent=state.period+' return');
- $('#method-live-status').textContent=`Snapshot checked ${new Intl.DateTimeFormat('en-US',{dateStyle:'medium',timeStyle:'short',timeZone:'America/Toronto'}).format(new Date(state.data.generatedAt))} Toronto time. ${ready.length} comparable daily series.`;
+ const checked=state.data.lastCheckedAt;
+ $('#last-checked').textContent=checked?`Checked ${new Intl.DateTimeFormat('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/New_York'}).format(new Date(checked))} ET`:'';
+ $('#method-live-status').textContent=`Bundled snapshot: ${date(state.data.generatedAt)}. ${checked?'Last source check: '+new Intl.DateTimeFormat('en-US',{dateStyle:'medium',timeStyle:'short',timeZone:'America/Toronto'}).format(new Date(checked))+' ET. ':''}${ready.length} comparable daily series. Source checks do not change the observation dates.`;
  renderView();
 }
 function renderView(){
  if(!state.data)return;
- if(state.view==='overview'){renderHero();renderMovers();renderFocus();renderRibbon()}
+ if(state.view==='overview'){renderLead();renderHero();renderMovers();renderFocus();renderRibbon()}
  else if(state.view==='markets')renderMarkets();
  else if(state.view==='relative')renderPairs();
  else if(state.view==='rates')renderRisk();
  else if(state.view==='universe'){renderTable();renderReferences()}
+}
+function renderLead(){
+ const p=state.pairs[0],story=$('#lead-story');story.hidden=!p;if(!p)return;
+ const positive=p.stats.gap>=0;
+ const winner=positive?p.a:p.b,laggard=positive?p.b:p.a,colors=['#edcb80','#8abed0'];
+ $('#lead-eyebrow').textContent=p.score>=2?'Lead relative signal':'Largest relative deviation';
+ $('#lead-period').textContent=state.period;
+ $('#lead-title').textContent=positive?p.positive:p.negative;
+ $('#lead-value').textContent=number(Math.abs(p.stats.gap),2);
+ $('#lead-legs').innerHTML=[winner,laggard].map((symbol,i)=>`<div class="lead-leg"><span class="lead-leg-label"><i class="legend-dot" style="background:${colors[i]}"></i>${escape(symbol)} <small>${i?'Laggard':'Leader'}</small></span><strong>${pct(symbol===p.a?p.stats.aReturn:p.stats.bReturn)}</strong><small>${escape(nameFor(state.rows.find(r=>r.symbol===symbol)||{symbol}))}</small></div>`).join('');
+ $('#lead-score').innerHTML=`<span class="lead-score" title="Absolute deviation from the pre-window mean, scaled by relative volatility. Ranking heuristic, not a significance test.">${number(p.score,1)}σ<span>vs prior 63 sessions</span></span>`;
+ $('#lead-details').onclick=()=>openPair(p);
+ $('#lead-chart-label').textContent=`${winner} / ${laggard} · rebased 100`;
+ $('#lead-window').textContent=`${date(p.stats.start,true)} — ${date(p.stats.end,true)}`;
+ $$('#lead-ranges button').forEach(b=>{const active=b.dataset.range===state.leadRange;b.classList.toggle('selected',active);b.setAttribute('aria-pressed',String(active))});
+ lineChart('lead-chart',[{symbol:winner,label:nameFor(state.rows.find(r=>r.symbol===winner)||{symbol:winner}),color:colors[0]},{symbol:laggard,label:nameFor(state.rows.find(r=>r.symbol===laggard)||{symbol:laggard}),color:colors[1]}],{range:state.leadRange,height:330,dark:true,shade:true});
 }
 function renderHero(){
  $$('#hero-ranges button').forEach(b=>{b.classList.toggle('selected',b.dataset.range===state.range);b.setAttribute('aria-pressed',String(b.dataset.range===state.range))});
@@ -139,7 +158,7 @@ function renderMovers(){
  $('#movers-list').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>openDetail(b.dataset.symbol)));
 }
 function renderFocus(){
- const selected=state.pairs.slice(0,2).map(p=>({kind:'pair',title:p.title,a:p.a,b:p.b,value:p.stats.gap,unit:'pp',score:p.stats.sigma,pair:p}));
+ const selected=state.pairs.slice(1,3).map(p=>({kind:'pair',title:p.title,a:p.a,b:p.b,value:p.stats.gap,unit:'pp',score:p.stats.sigma,pair:p}));
  const mover=unusual()[0];
  if(mover){const parents={XES:'XLE',IEZ:'XLE',XOP:'XLE',IEO:'XLE',XBI:'XLV',IBB:'XLV',SOXX:'XLK',SMH:'XLK',KRE:'XLF',KBE:'XLF',QYLD:'QQQ',XYLD:'IVV',RYLD:'IWM'};selected.push({kind:'asset',title:mover.name,a:mover.symbol,b:parents[mover.symbol]||(mover.category==='fixed_income'?'AGG':'ACWI'),value:mover.stats.return,unit:'%',score:mover.stats.sigma,row:mover})}
  $('#insight-cards').innerHTML=selected.map((c,i)=>`<article class="panel focus-card"><div class="focus-card-header"><h3><button class="chart-title-button" data-focus="${i}">${escape(c.title)}</button></h3>${sigma(c.score)}</div><div class="focus-metric"><strong class="${signClass(c.value)}">${signed(c.value)}${c.unit==='%'?'%':''}</strong><span>${c.unit==='pp'?'pp spread':state.period+' return'}</span></div><div id="focus-chart-${i}" class="line-chart"></div><div class="focus-footer"><span>${state.period} ${c.kind==='pair'?'relative move':'unusual move'}</span><span>3M context</span></div></article>`).join('');
@@ -210,29 +229,63 @@ function openPair(p){
  $('#detail-content').innerHTML=`<div class="detail-heading"><h2>${escape(p.title)}</h2></div><p class="detail-subtitle">Common dates / USD ETF returns</p><div class="detail-returns"><div><label>${p.a} / ${state.period}</label><strong class="${signClass(p.stats.aReturn)}">${pct(p.stats.aReturn)}</strong></div><div><label>${p.b} / ${state.period}</label><strong class="${signClass(p.stats.bReturn)}">${pct(p.stats.bReturn)}</strong></div><div><label>Return spread</label><strong class="${signClass(p.stats.gap)}">${signed(p.stats.gap)} pp</strong></div></div><div id="detail-chart" class="line-chart"></div><p class="context-note">${escape(p.note)}</p><details class="detail-notes"><summary>Calculation</summary><p>${date(p.stats.start)} to ${date(p.stats.end)}. Prior-mean-adjusted relative move: ${signed(p.stats.sigma)}σ. Up to 63 pre-window observations; not a significance test.</p></details><div class="detail-source"><a href="https://finance.yahoo.com/quote/${p.a}/history/" target="_blank" rel="noopener noreferrer">${p.a} history ↗</a><a href="https://finance.yahoo.com/quote/${p.b}/history/" target="_blank" rel="noopener noreferrer">${p.b} history ↗</a></div>`;
  lineChart('detail-chart',[{symbol:p.a,label:p.a},{symbol:p.b,label:p.b}],{range:'6M',height:290,shade:true});$('#detail-dialog').showModal();
 }
+let refreshController;
 async function refreshData({automatic=false}={}){
- if(state.refreshing||!state.data)return;if(automatic&&state.asOf>=expectedCloseDate())return;
+ if(state.refreshing||!state.data||automatic&&document.hidden)return;
  let last=0;try{last=Number(sessionStorage.getItem('macro-last-attempt')||0)}catch{}
- if(automatic&&Date.now()-last<3*3600000)return;
- state.refreshing=true;$('#refresh').disabled=true;$('#refresh-icon').classList.add('spinning');const message=$('#update-message');message.hidden=false;
+ if(automatic&&Date.now()-last<30*60000)return;
+ state.refreshing=true;refreshController=new AbortController();
+ const controller=refreshController,summary=$('#refresh-summary'),progress=$('#refresh-progress');
+ $('#refresh').disabled=true;$('#refresh-icon').classList.add('spinning');$('#update-message').hidden=false;
+ $('#cancel-refresh').hidden=false;$('#refresh-details').hidden=true;$('#refresh-details').open=false;
+ summary.textContent='Checking latest completed closes…';progress.hidden=false;progress.value=0;
  try{sessionStorage.setItem('macro-last-attempt',String(Date.now()))}catch{}
  const jobs=[...state.data.universe.filter(r=>r.eligible).map(r=>({symbol:r.symbol,kind:'series'})),...Object.keys(state.data.risk).map(symbol=>({symbol,kind:'risk'}))];
- let i=0,done=0,success=0,failed=0;
- const run=async()=>{while(i<jobs.length){const job=jobs[i++];try{
-  const r=await fetch(`/api/history?symbol=${encodeURIComponent(job.symbol)}&kind=${job.kind}`,{signal:AbortSignal.timeout(28000)});if(!r.ok)throw Error();const v=await r.json();
-  if(!v.points?.length||v.fallback||v.quality!=='ok')throw Error();const target=job.kind==='series'?state.data.series:state.data.risk;
-  if(!target[job.symbol]?.asOf||v.asOf>=target[job.symbol].asOf)target[job.symbol]=v;success++;
- }catch{failed++}done++;message.textContent=`Checking sources: ${done} / ${jobs.length}`}};
- await Promise.all(Array.from({length:5},run));
- if(success){state.data.generatedAt=new Date().toISOString();reanalyze();render();try{localStorage.setItem('macro-lens-snapshot',JSON.stringify(state.data))}catch{}}
- message.textContent=`${success} sources checked${failed?`; ${failed} dated snapshots retained`:''}. As of ${date(state.asOf)}.`;
- state.refreshing=false;$('#refresh').disabled=false;$('#refresh-icon').classList.remove('spinning');
+ // Commit all accepted histories together; cancellation leaves the displayed snapshot intact.
+ const staged={series:{...state.data.series},risk:{...state.data.risk}},issues=[];
+ let i=0,done=0,checked=0,newCloses=0,revised=0,cached=0;
+ progress.max=jobs.length;$('#refresh-counter').textContent=`0 / ${jobs.length}`;
+ const run=async()=>{while(i<jobs.length&&!controller.signal.aborted){
+  const job=jobs[i++],previous=state.data[job.kind][job.symbol];
+  try{
+   const r=await fetch(`/api/history?symbol=${encodeURIComponent(job.symbol)}&kind=${job.kind}`,{cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(28000)])});
+   if(!r.ok)throw Error(`HTTP ${r.status}`);const v=await r.json();
+   if(!v.points?.length||v.fallback||v.quality!=='ok')throw Error(v.refreshError||'Source history unavailable');
+   if(previous?.asOf&&v.asOf<previous.asOf)throw Error('Source is older than the displayed history');
+   staged[job.kind][job.symbol]=v;checked++;if(v.cacheStatus==='hit')cached++;
+   if(!previous?.asOf||v.asOf>previous.asOf)newCloses++;
+   else if(JSON.stringify(v.points)!==JSON.stringify(previous.points))revised++;
+  }catch(error){
+   if(controller.signal.aborted)break;
+   issues.push(`${job.symbol}: ${String(error.message).slice(0,120)}. Retained ${previous?.asOf||'unavailable'}.`);
+  }
+  done++;progress.value=done;$('#refresh-counter').textContent=`${done} / ${jobs.length}`;
+  if(done%25===0)summary.textContent=`Checking latest completed closes… ${Math.round(done/jobs.length*100)}%`;
+ }};
+ try{
+  await Promise.all(Array.from({length:5},run));
+  if(controller.signal.aborted){summary.textContent='Check cancelled. Previous snapshot retained.';return}
+  summary.textContent='Recalculating signals…';
+  state.data={...state.data,...staged,lastCheckedAt:new Date().toISOString()};
+  reanalyze();render();try{localStorage.setItem('macro-lens-snapshot',JSON.stringify(state.data))}catch{}
+  const outcome=newCloses?`${newCloses} series with new closes`:revised?`${revised} histories revised`:'No new closes';
+  summary.textContent=`${outcome} · ${checked} checked${issues.length?` · ${issues.length} snapshots retained`:''}`;
+  $('#refresh-detail-text').textContent=[`${cached} responses from the shared 30-minute cache. ${revised} same-date histories revised.`,...issues].join('\n');
+  $('#refresh-details').hidden=false;
+ }catch{
+  summary.textContent='Check could not finish. Select Refresh to retry.';
+ }finally{
+  state.refreshing=false;refreshController=null;$('#refresh').disabled=false;$('#refresh-icon').classList.remove('spinning');
+  $('#cancel-refresh').hidden=true;progress.hidden=true;$('#refresh-counter').textContent='';
+ }
 }
 function wire(){
  $$('a[href^="#"]').forEach(a=>{if(Object.hasOwn(VIEWS,a.hash?.slice(1)))a.addEventListener('click',e=>{if(e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;e.preventDefault();navigate(a.hash.slice(1))})});
  $('#periods').addEventListener('click',e=>{const b=e.target.closest('[data-period]');if(!b)return;state.period=b.dataset.period;if(state.sort!=='sigma')state.sort=state.period.toLowerCase();reanalyze();render();syncURL()});
  $('#hero-ranges').addEventListener('click',e=>{const b=e.target.closest('[data-range]');if(!b)return;state.range=b.dataset.range;renderHero();syncURL()});
+ $('#lead-ranges').addEventListener('click',e=>{const b=e.target.closest('[data-range]');if(!b)return;state.leadRange=b.dataset.range;renderLead()});
  $('#refresh').onclick=()=>refreshData();
+ $('#cancel-refresh').onclick=()=>refreshController?.abort();
  ['open-method','footer-method'].forEach(id=>document.getElementById(id).addEventListener('click',()=>$('#method-dialog').showModal()));
  $$('dialog').forEach(d=>{d.querySelector('[data-close]').addEventListener('click',()=>d.close());d.addEventListener('click',e=>{if(e.target===d)d.close()});d.addEventListener('close',()=>$('#chart-tooltip').hidden=true)});
  const search=()=>{navigate('universe');$('#search').focus()};$('#search-shortcut').addEventListener('click',search);
@@ -255,7 +308,7 @@ function wire(){
 async function boot(){
  try{
   const response=await fetch('/api/snapshot');if(!response.ok)throw Error('Snapshot unavailable');state.data=await response.json();
-  try{const c=JSON.parse(localStorage.getItem('macro-lens-snapshot')||'null');if(c?.methodologyVersion===state.data.methodologyVersion&&c.generatedAt>state.data.generatedAt&&c.universe?.length===259&&Object.keys(c.series||{}).length>=200)state.data=c}catch{}
+  try{const c=JSON.parse(localStorage.getItem('macro-lens-snapshot')||'null');if(c?.methodologyVersion===state.data.methodologyVersion&&(c.lastCheckedAt||c.generatedAt)>state.data.generatedAt&&c.universe?.length===259&&Object.keys(c.series||{}).length>=200&&getAsOf(c.series)>=getAsOf(state.data.series))state.data=c}catch{}
   readURL();reanalyze();wire();render();navigate(state.view,false);
   window.macroLens={get state(){return {period:state.period,view:state.view,asOf:state.asOf,ready:state.rows.filter(r=>r.ready).length,total:state.data.universe.length}}};
   refreshData({automatic:true});

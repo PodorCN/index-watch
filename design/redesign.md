@@ -1,28 +1,18 @@
-# Macro Lens interface direction
+# Macro Lens research brief
 
-Audience: macro researchers comparing cross-asset returns and unusual relative moves.
-Primary job: spot changes, compare the evidence, inspect a symbol.
+Primary task: identify the most unusual relative move, read the evidence, then scan the broader market.
 
-Tokens: Canvas #f1f4f8; Surface #ffffff; Ink #172b4d; Muted #64748b;
-Action #3563e9; Positive #137f69; Negative #c94f60.
-Type: IBM Plex Sans for navigation and labels; IBM Plex Mono for financial numbers.
-12 / 14 / 18 / 26 px scale. Left alignment, tabular numeric columns.
+Visual order:
+1. A single navy lead panel: strongest of the ten monitored relative comparisons by absolute pre-window-adjusted sigma. Directional headline, unsigned leader-minus-laggard spread in pp, both returns and one two-series chart.
+2. Quiet summary line, followed by cross-asset context and the full unusual-mover list.
+3. The next two relative signals and largest individual move, followed by sector breadth.
+4. Markets, relative, rates and the full instrument universe remain separate navigable views.
 
-Layout:
-[Logo] [Overview | Markets | Relative | Rates | Universe] [As of] [Refresh]
-[Benchmark tape: US equities | Treasuries | Gold | Dollar | VIX]
-[View title]                                      [WTD | MTD | YTD]
-[Cross-asset chart, 8 columns] [Unusual movers, 4 columns]
-[Automatic focus chart] [Automatic focus chart] [Unusual asset chart]
+Palette: warm canvas #f5f4f0, ink #172b3d, navy #152d3c, gold #edcb80.
+Newsreader gives the lead headline a distinct research-publication voice. IBM Plex Sans handles the interface; IBM Plex Mono handles numbers. Secondary panels have light borders and small corner radii.
 
-Markets, relative charts, rates and the universe each get a distinct tab.
-Methodology, provenance and long index names live in a detail drawer.
+The lead is a factual relative-return observation. It does not imply flows, causality or statistical significance. If the top score is below 2, label it as the largest relative deviation.
 
-Review against the brief: Remove the introductory research essay and numbered
-section labels. Keep an as-of date, return basis and source status because they
-change how results are interpreted. Give the main comparison chart the most
-space; avoid a page of equal-weight promotional cards. English throughout.
-No decorative illustrations, unrelated animation, or prose above the data.
+Refresh stages all acceptable histories before replacing the active snapshot. A cancelled check discards staged histories. Feedback distinguishes newer closes, same-date revisions, unchanged checks, cached responses and failed sources. Observation dates remain separate from source-check time. All visible copy is English.
 
-Review files: worker/index.html, worker/styles.css, worker/app.js and analytics.mjs.
 References: Anthropic frontend-design and Vercel Web Interface Guidelines.
