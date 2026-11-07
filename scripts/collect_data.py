@@ -86,6 +86,8 @@ def risk(symbol):
 def main():
     (ROOT/'data/raw').mkdir(parents=True,exist_ok=True)
     original=json.loads(SOURCE.read_text())
+    previous_path=ROOT/'data/snapshot.json'
+    previous=json.loads(previous_path.read_text()) if previous_path.exists() else {}
     compact=[]
     for row in original:
         compact.append({'id':row['record_id'],'symbol':row['ticker'],'name':row['monitoring_role_zh'],
@@ -94,22 +96,28 @@ def main():
                         'issuer':row['issuer'],'sourceUrl':row['public_source_url'],
                         'weighting':row['weighting_tag'],'frequency':row['frequency'],
                         'notes':row['notes'],'region':row['region_tag'],
-                        'eligible':row['record_id'].startswith('ETF:')})
+                        'eligible':row['record_id'].startswith('ETF:'),
+                        'strategyGroup':row.get('strategy_group')})
     symbols=[r['symbol'] for r in compact if r['eligible']]
     output={};errors=[]
     with ThreadPoolExecutor(max_workers=6) as pool:
         futures={pool.submit(yahoo,s):s for s in symbols}
         for i,f in enumerate(as_completed(futures),1):
             result=f.result();s=futures[f]
-            if 'error' in result:errors.append(result)
+            if 'error' in result:
+                errors.append(result)
+                old=previous.get('series',{}).get(s)
+                if old and old.get('points'):output[s]={**old,'fallback':True,'refreshError':result['error']}
             else:output[s]=result
             if i%25==0 or 'error' in result:
                 print(json.dumps({'completed':i,'total':len(symbols),'symbol':s,'error':result.get('error')}),flush=True)
     risk_output={}
     with ThreadPoolExecutor(max_workers=4) as pool:
-        for r in pool.map(risk,RISK):risk_output[r['symbol']]=r
+        for r in pool.map(risk,RISK):
+            old=previous.get('risk',{}).get(r['symbol'])
+            risk_output[r['symbol']]={**old,'fallback':True,'refreshError':r['error']} if r.get('error') and old and old.get('points') else r
     snapshot={'generatedAt':NOW.isoformat(),'universe':compact,'series':output,'risk':risk_output,'errors':errors,
-              'methodologyVersion':'1.0','baseCurrency':'USD',
+              'methodologyVersion':'1.0','universeVersion':'2026-11-07-strategies','baseCurrency':'USD',
               'sources':['Yahoo Finance adjusted historical close','Cboe official daily CSV','FRED official series CSV',
                          'ETF issuer benchmark metadata'],
               'notice':'ETF total-return proxies; completed US trading sessions only; private benchmarks excluded from daily ranking.'}

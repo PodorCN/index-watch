@@ -11,7 +11,8 @@ for(const path of ['/','/styles.css','/app.js','/analytics.mjs','/api/health','/
  const res=await worker.default.fetch(new Request('https://test.invalid'+path),{},{});
  assert.equal(res.status,200,path);
  if(path==='/api/snapshot'){
-  const s=await res.json();assert.equal(s.universe.length,259);assert.equal(Object.keys(s.series).length,235);
+  const s=await res.json();assert.equal(s.universe.length,269);assert.equal(Object.keys(s.series).length,s.universe.filter(r=>r.eligible).length);
+  assert.equal(s.universe.filter(r=>r.strategyGroup).length,20);
   assert.ok(s.risk.DGS10.points.length>200);assert.ok(s.risk.VIX.points.length>200);
  }
 }

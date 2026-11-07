@@ -2,6 +2,7 @@ export const LABELS = {
  region_global:'Global & regional',region_us:'US equity',region_country:'Countries',factor:'Factors',style:'Style',
  sector_us:'US sectors',sector_global:'Global sectors',industry_theme:'Industries & themes',weighting:'Weighting',
  fixed_income:'Fixed income',option_strategy:'Options',managed_futures:'Managed futures',allocation_strategy:'Allocation',
+ defensive_strategy:'Defensive hedges',arbitrage_strategy:'Merger arbitrage',multi_strategy:'Multi-strategy',
  private_markets_listed_proxy:'Listed private-market proxies',private_benchmark:'Private benchmarks',real_assets_listed:'Real assets',
  commodity:'Commodities',fx:'FX',digital_assets:'Digital assets',risk_context:'Risk indicators',
  hedge_fund_benchmark:'Hedge fund benchmarks',index_reference:'Index references'
@@ -94,7 +95,19 @@ export const PAIRS=[
  {a:'HYG',b:'LQD',title:'High yield vs investment grade',theme:'Credit',positive:'High yield outperforms',negative:'Investment grade outperforms',note:'Durations differ. Read alongside OAS; the return spread is not a pure measure of credit risk.'},
  {a:'GLD',b:'IVV',title:'Gold vs US equities',theme:'Cross-asset',positive:'Gold outperforms US equities',negative:'US equities outperform gold',note:'USD gold-trust and equity ETF returns. Price action does not establish a safe-haven or flow narrative.'},
  {a:'RWL',b:'IVV',title:'Revenue vs cap weight',theme:'Weighting',positive:'Revenue weighting leads',negative:'Cap weighting leads',note:'The same S&P 500 constituent universe with different weighting and rebalancing rules.'},
- {a:'DBMF',b:'IVV',title:'Managed futures vs equities',theme:'Strategies',positive:'Managed futures outperform',negative:'Equities outperform managed futures',note:'DBMF is an active strategy; it does not replicate the SG CTA Index.'}
+ {a:'DBMF',b:'IVV',title:'Managed futures vs equities',theme:'Trend',positive:'Managed futures outperform',negative:'Equities outperform managed futures',note:'DBMF is an active strategy; it does not replicate the SG CTA Index.'},
+ {a:'KMLM',b:'AOR',title:'Systematic trend vs 60/40',theme:'Trend',positive:'Systematic trend leads 60/40',negative:'60/40 leads systematic trend',note:'KMLM tracks the KFA MLM Index. AOR is a global 60/40 allocation proxy; exposures and risk levels differ.'},
+ {a:'CTA',b:'AOR',title:'Managed futures vs 60/40',theme:'Trend',positive:'Managed futures lead 60/40',negative:'60/40 leads managed futures',note:'CTA is an active futures strategy. This allocation comparison does not isolate manager skill.'},
+ {a:'QYLD',b:'QQQ',title:'Nasdaq buy-write vs Nasdaq-100',theme:'Option income',positive:'Nasdaq buy-write leads',negative:'Nasdaq-100 leads buy-write',note:'Adjusted-close total returns include distributions. Option premia, upside limits and different fees affect the spread.'},
+ {a:'XYLD',b:'IVV',title:'S&P buy-write vs S&P 500',theme:'Option income',positive:'S&P buy-write leads',negative:'S&P 500 leads buy-write',note:'XYLD tracks a buy-write index, while IVV tracks equities. The spread is not distribution yield.'},
+ {a:'JEPI',b:'IVV',title:'Active equity income vs S&P 500',theme:'Option income',positive:'Active equity income leads',negative:'S&P 500 leads active income',note:'JEPI combines active stock selection and option-related income. It is not a mechanical covered-call index tracker.'},
+ {a:'JEPQ',b:'QQQ',title:'Nasdaq income vs Nasdaq-100',theme:'Option income',positive:'Nasdaq income leads',negative:'Nasdaq-100 leads income',note:'JEPQ is actively managed. Equity selection, option exposure and fees all affect the total-return difference.'},
+ {a:'BTAL',b:'SGOV',title:'Anti-beta vs T-bills',theme:'Defensive',positive:'Anti-beta leads T-bills',negative:'T-bills lead anti-beta',note:'BTAL holds a long-low-beta, short-high-beta strategy. Cash is an opportunity-cost comparison, not a risk-matched benchmark.'},
+ {a:'TAIL',b:'IEF',title:'Tail hedge vs Treasuries',theme:'Defensive',positive:'Tail hedge leads Treasuries',negative:'Treasuries lead tail hedge',note:'TAIL holds puts and Treasuries. IEF has different duration; the spread does not isolate option payoff or hedging efficacy.'},
+ {a:'MNA',b:'SGOV',title:'Merger arbitrage vs T-bills',theme:'Arbitrage',positive:'Merger arbitrage leads T-bills',negative:'T-bills lead merger arbitrage',note:'MNA tracks a merger-arbitrage index. Deal risk and liquidity differ from T-bills; the spread is not risk-free alpha.'},
+ {a:'QAI',b:'AOR',title:'Multi-strategy vs 60/40',theme:'Multi-strategy',positive:'Multi-strategy leads 60/40',negative:'60/40 leads multi-strategy',note:'QAI is a liquid replication index ETF, not an HFRI tracker. Equity beta and duration differ from AOR.'},
+ {a:'RPAR',b:'AOR',title:'Risk parity vs 60/40',theme:'Allocation',positive:'Risk parity leads 60/40',negative:'60/40 leads risk parity',note:'Risk parity and capital-weighted 60/40 have different asset mix, duration and leverage.'},
+ {a:'NTSX',b:'AOR',title:'Efficient core vs 60/40',theme:'Allocation',positive:'Efficient core leads 60/40',negative:'60/40 leads efficient core',note:'NTSX uses US equities and Treasury futures; AOR is global. Geography, leverage and duration all affect this allocation comparison.'}
 ];
 export function pairInsights(series,period='MTD',asOf=getAsOf(series)){
  return PAIRS.map(p=>({...p,stats:alignedPair(series[p.a],series[p.b],period,asOf)}))
@@ -102,6 +115,18 @@ export function pairInsights(series,period='MTD',asOf=getAsOf(series)){
     &&series[p.a]?.quality==='ok'&&series[p.b]?.quality==='ok')
   .map(p=>({...p,score:Math.abs(p.stats.sigma??0),headline:p.stats.gap>=0?p.positive:p.negative}))
   .sort((a,b)=>b.score-a.score);
+}
+export function selectLeadSignals(pairs,limit=4){
+ const families={Breadth:'Equity breadth',Concentration:'Equity breadth',Weighting:'Equity breadth',Size:'Equity style',Style:'Equity style'};
+ const selected=[],used=new Set(),comparisons=new Set();
+ for(const p of [...pairs].sort((a,b)=>b.score-a.score)){
+  if(selected.length>=limit)break;
+  if(!Number.isFinite(p.stats?.sigma)||!Number.isFinite(p.stats?.gap)||!Number.isFinite(p.score))continue;
+  const family=families[p.theme]||p.theme,key=[p.a,p.b].sort().join('/');
+  if(used.has(family)||comparisons.has(key))continue;
+  selected.push({...p,family});used.add(family);comparisons.add(key);
+ }
+ return selected;
 }
 export function normalized(series,startDate,endDate){
  if(!series?.points)return [];

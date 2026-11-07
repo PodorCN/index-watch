@@ -27,15 +27,14 @@ async function harness(href='https://macro.test/#overview',historyFetch){
 }
 
 test('English research workspace preserves charts, filters, periods and instrument provenance',async()=>{
- const {window,document,localStorage,location,errors}=await harness();
- assert.equal(window.macroLens.state.ready,235);
+ const {window,document,localStorage,location,errors,seed}=await harness();
+ assert.equal(window.macroLens.state.ready,seed.universe.filter(r=>r.eligible).length);
  assert.equal(document.querySelectorAll('#stats .stat').length,4);
  assert.equal(document.querySelectorAll('#movers-list .mover-row').length,8);
  assert.equal(document.querySelectorAll('#insight-cards .focus-card').length,3);
  assert.equal(document.querySelectorAll('#sector-ribbon .sector-tile').length,11);
  assert.ok(document.querySelector('#macro-chart polyline'));
- const lead=analytics.pairInsights(seedForLead(),'MTD')[0];
- function seedForLead(){return JSON.parse(readFileSync(new URL('../data/snapshot.json',import.meta.url))).series}
+ const lead=analytics.selectLeadSignals(analytics.pairInsights(seed.series,'MTD'))[0];
  assert.equal(document.querySelector('#lead-title').textContent,lead.stats.gap>=0?lead.positive:lead.negative);
  assert.equal(document.querySelector('#lead-value').textContent,analytics.number(Math.abs(lead.stats.gap),2));
  assert.equal(document.querySelectorAll('#lead-chart polyline').length,2);
@@ -52,7 +51,7 @@ test('English research workspace preserves charts, filters, periods and instrume
  document.querySelector('a[href="#rates"]').click();
  for(const id of ['yield-chart','credit-chart','vix-chart','inflation-chart'])assert.ok(document.querySelector('#'+id+' polyline'));
  document.querySelector('a[href="#relative"]').click();
- assert.equal(document.querySelectorAll('#pair-grid .pair-panel').length,10);
+ assert.equal(document.querySelectorAll('#pair-grid .pair-panel').length,analytics.PAIRS.length);
  document.querySelector('[data-pair="0"]').click();
  assert.ok(document.querySelector('#detail-dialog').hasAttribute('open'));
  assert.match(document.querySelector('#detail-content').textContent,/not a significance test/);
@@ -83,8 +82,8 @@ test('Refresh reports same-date cached checks and retained failures without clai
   return new Response(JSON.stringify({...seed[kind][s],cacheStatus:'hit',...(s==='DGS2'?{fallback:true,refreshError:'Source returned HTTP 520'}:{})}));
  });
  const generated=h.seed.generatedAt;await h.refresh();
- assert.match(h.document.querySelector('#refresh-summary').textContent,/No new closes · 246 checked · 1 snapshots retained/);
- assert.match(h.document.querySelector('#refresh-detail-text').textContent,/246 responses from the shared 30-minute cache/);
+ assert.match(h.document.querySelector('#refresh-summary').textContent,new RegExp(`No new closes · ${h.seed.universe.filter(r=>r.eligible).length+Object.keys(h.seed.risk).length-1} checked · 1 snapshots retained`));
+ assert.match(h.document.querySelector('#refresh-detail-text').textContent,new RegExp(`${h.seed.universe.filter(r=>r.eligible).length+Object.keys(h.seed.risk).length-1} responses from the shared 30-minute cache`));
  assert.match(h.document.querySelector('#refresh-detail-text').textContent,/DGS2: Source returned HTTP 520/);
  const saved=JSON.parse(h.localStorage.getItem('macro-lens-snapshot'));
  assert.equal(saved.generatedAt,generated);assert.ok(saved.lastCheckedAt);
@@ -98,20 +97,20 @@ test('Refresh commits new closes together and cancellation discards partially fe
   const p=new URL(url,'https://macro.test').searchParams,s=p.get('symbol'),kind=p.get('kind');
   if(hold&&s!=='IVV')await new Promise((resolve,reject)=>{deferred.push(resolve);options.signal.addEventListener('abort',()=>reject(new Error('cancelled')),{once:true})});
   const value=structuredClone(seed[kind][s]);
-  if(s==='IVV'){value.asOf='2026-11-06';value.points.push(['2026-11-06',value.points.at(-1)[1]*1.005])}
+  if(s==='IVV'){value.asOf='2026-11-09';value.points.push(['2026-11-09',value.points.at(-1)[1]*1.005])}
   return new Response(JSON.stringify({...value,cacheStatus:'miss'}));
  });
  const task=h.refresh();
  for(let i=0;i<30&&deferred.length<5;i++)await new Promise(r=>setTimeout(r,1));
- assert.equal(vm.runInContext('state.data.series.IVV.asOf',h.context),'2026-11-05','Partial results must not reach the displayed snapshot');
+ assert.equal(vm.runInContext('state.data.series.IVV.asOf',h.context),h.seed.series.IVV.asOf,'Partial results must not reach the displayed snapshot');
  h.document.querySelector('#cancel-refresh').click();await task;
  assert.match(h.document.querySelector('#refresh-summary').textContent,/cancelled/);
  assert.equal(h.localStorage.getItem('macro-lens-snapshot'),null);
- assert.equal(vm.runInContext('state.data.series.IVV.asOf',h.context),'2026-11-05');
+ assert.equal(vm.runInContext('state.data.series.IVV.asOf',h.context),h.seed.series.IVV.asOf);
  assert.equal(h.document.querySelector('#refresh').disabled,false);
  hold=false;await h.refresh();
  assert.match(h.document.querySelector('#refresh-summary').textContent,/1 series with new closes/);
- assert.equal(JSON.parse(h.localStorage.getItem('macro-lens-snapshot')).series.IVV.asOf,'2026-11-06');
+ assert.equal(JSON.parse(h.localStorage.getItem('macro-lens-snapshot')).series.IVV.asOf,'2026-11-09');
 });
 
 test('Universe links restore period and search without showing the overview',async()=>{
@@ -120,4 +119,46 @@ test('Universe links restore period and search without showing the overview',asy
  assert.equal(document.querySelector('#overview').hidden,true);assert.equal(document.querySelector('#universe').hidden,false);
  assert.equal(document.querySelectorAll('#universe-body tr').length,1);
  assert.match(document.querySelector('#universe-body').textContent,/MTUM/);
+});
+
+test('Four distinct lead signals switch the detailed chart and refresh their ranking with the return window',async()=>{
+ const {document,window,seed}=await harness();
+ const expected=analytics.selectLeadSignals(analytics.pairInsights(seed.series,'MTD'));
+ assert.equal(document.querySelectorAll('[data-lead]').length,4);
+ assert.equal(document.querySelectorAll('[data-lead][aria-pressed="true"]').length,1);
+ const initialChartLabel=document.querySelector('#lead-chart svg').getAttribute('aria-label');
+ document.querySelector('[data-lead="2"]').click();
+ assert.equal(document.querySelector('#lead-title').textContent,expected[2].headline);
+ assert.equal(document.querySelector('#lead-value').textContent,analytics.number(Math.abs(expected[2].stats.gap),2));
+ assert.notEqual(document.querySelector('#lead-chart svg').getAttribute('aria-label'),initialChartLabel);
+ document.querySelector('#lead-details').click();assert.match(document.querySelector('#detail-content').textContent,new RegExp(expected[2].title));
+ document.querySelector('#detail-dialog [data-close]').click();
+ document.querySelector('[data-period="YTD"]').click();
+ const ytd=analytics.selectLeadSignals(analytics.pairInsights(seed.series,'YTD'));
+ assert.equal(window.macroLens.state.period,'YTD');assert.equal(document.querySelector('#lead-title').textContent,ytd[0].headline);
+ assert.equal(document.querySelectorAll('[data-lead]').length,4);
+ for(const signal of ytd)assert.ok(![...document.querySelectorAll('.focus-card h3')].some(h=>h.textContent===signal.title));
+});
+
+test('Strategies have all return windows, filters, comparisons, source details and shareable links',async()=>{
+ const {document,window,location}=await harness();
+ document.querySelector('a[href="#strategies"]').click();
+ assert.equal(window.macroLens.state.view,'strategies');
+ assert.equal(document.querySelectorAll('.strategy-row').length,20);
+ assert.equal(document.querySelectorAll('.strategy-panel').length,6);
+ assert.equal(document.querySelectorAll('#strategy-pairs .pair-panel').length,4);
+ document.querySelector('[data-strategy="Options & income"]').click();
+ assert.equal(document.querySelectorAll('.strategy-row').length,6);
+ assert.equal(location.searchParams.get('strategy'),'Options & income');
+ document.querySelector('[data-strategy-symbol="JEPI"]').click();
+ assert.match(document.querySelector('#detail-content').textContent,/Comparison benchmark, not a replication target/);
+ assert.ok([...document.querySelectorAll('#detail-content a')].some(a=>a.getAttribute('href').includes('am.jpmorgan.com')));
+ document.querySelector('#detail-dialog [data-close]').click();
+ document.querySelector('[data-strategy-pair="0"]').click();
+ assert.match(document.querySelector('#detail-content').textContent,/not a significance test/);
+ assert.doesNotMatch(document.body.textContent,/[\u3400-\u9fff]/);
+ const restored=await harness('https://macro.test/?period=YTD&strategy=Defensive+hedges#strategies');
+ assert.equal(restored.window.macroLens.state.view,'strategies');
+ assert.equal(restored.document.querySelectorAll('.strategy-row').length,2);
+ assert.equal(restored.document.querySelector('#overview').hidden,true);
 });

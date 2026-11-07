@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {periodStart,periodStats,alignedPair,computeRows,expectedCloseDate,indicatorChange} from '../worker/analytics.mjs';
+import {periodStart,periodStats,alignedPair,computeRows,expectedCloseDate,indicatorChange,selectLeadSignals,pairInsights} from '../worker/analytics.mjs';
 
 test('Weekly and monthly bases precede the window, including year boundaries',()=>{
  assert.equal(periodStart('2026-11-05','WTD'),'2026-11-02');
@@ -32,7 +32,8 @@ test('An unfinished New York session cannot become the expected completed date',
 });
 test('The real seed has synchronized, non-fabricated period returns and enough volatility history',()=>{
  const s=JSON.parse(readFileSync(new URL('../data/snapshot.json',import.meta.url)));
- assert.equal(Object.keys(s.series).length,235);
+ assert.equal(Object.keys(s.series).length,s.universe.filter(r=>r.eligible).length);
+ assert.ok(Object.keys(s.series).length>=245);
  const rows=computeRows(s.universe,s.series,'MTD');
  const ivv=rows.find(r=>r.symbol==='IVV');assert.equal(ivv.status,'ready');
  const points=s.series.IVV.points,base=points.filter(p=>p[0]<'2026-11-01').at(-1),end=points.at(-1);
@@ -60,4 +61,33 @@ test('Ordinary positive carry is centered before calculating unusualness',()=>{
  const x=periodStats({points,asOf:'2026-11-05'},'MTD');
  assert.ok(x.return>0,'Normal cash carry still has a positive total return');
  assert.ok(Math.abs(x.sigma)<.2,'Normal carry is not a false 20-sigma anomaly');
+});
+
+test('Lead selection keeps the largest move, diversifies themes, and never pads invalid signals',()=>{
+ const pair=(a,b,theme,score)=>({a,b,theme,score,stats:{sigma:score,gap:1}});
+ const candidates=[pair('A','B','Breadth',5),pair('C','D','Concentration',4.9),pair('B','A','Credit',4.8),pair('E','F','Style',4),pair('G','H','Trend',3),pair('I','J','Arbitrage',2),pair('K','L','Allocation',1)];
+ const leads=selectLeadSignals(candidates);
+ assert.deepEqual(leads.map(p=>p.a),['A','E','G','I']);
+ assert.equal(new Set(leads.map(p=>p.family)).size,4);
+ assert.equal(selectLeadSignals([{...candidates[0],stats:{sigma:null,gap:1}}]).length,0);
+ assert.equal(selectLeadSignals(candidates.slice(0,2)).length,1,'Overlapping equity-breadth themes do not fill the quota');
+});
+
+test('Strategy prices, references and lead selection remain valid across all three return windows',()=>{
+ const s=JSON.parse(readFileSync(new URL('../data/snapshot.json',import.meta.url)));
+ const strategies=s.universe.filter(r=>r.strategyGroup);
+ assert.equal(strategies.length,20);
+ assert.equal(new Set(strategies.map(r=>r.strategyGroup)).size,6);
+ for(const symbol of ['CTA','WTMF','BTAL','TAIL','MNA','QAI','NTSX','RPAR','JEPI','JEPQ']){
+  const row=strategies.find(r=>r.symbol===symbol),history=s.series[symbol];
+  assert.ok(row?.sourceUrl.startsWith('https://'));assert.equal(history.quality,'ok');
+  assert.equal(history.basis,'adjusted_close_total_return_proxy');assert.ok(history.points.length>=250);
+ }
+ assert.match(strategies.find(r=>r.symbol==='QAI').notes,/not an HFRI tracker/);
+ assert.match(strategies.find(r=>r.symbol==='JEPI').relationship,/active/);
+ for(const period of ['WTD','MTD','YTD']){
+  const leads=selectLeadSignals(pairInsights(s.series,period));
+  assert.equal(leads.length,4);assert.equal(new Set(leads.map(p=>p.family)).size,4);
+  for(const p of leads){assert.equal(p.stats.end,s.series.IVV.asOf);assert.ok(Number.isFinite(p.stats.sigma));}
+ }
 });

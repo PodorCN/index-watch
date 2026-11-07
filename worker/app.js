@@ -1,4 +1,4 @@
-import {LABELS,COLORS,pct,number,periodStart,periodStats,computeRows,getAsOf,pairInsights,normalized,chartStart,indicatorChange} from '/analytics.mjs?v=3';
+import {LABELS,COLORS,pct,number,periodStart,periodStats,computeRows,getAsOf,pairInsights,selectLeadSignals,normalized,chartStart,indicatorChange} from '/analytics.mjs?v=4';
 
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -6,11 +6,12 @@ const safeUrl=s=>{try{const u=new URL(s);return ['https:','http:'].includes(u.pr
 const signClass=v=>Number.isFinite(v)?v>=0?'positive':'negative':'';
 const signed=(v,d=2)=>Number.isFinite(v)?`${v>0?'+':''}${number(v,d)}`:'—';
 const date=(s,short=false)=>s?new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',...(short?{}:{year:'numeric'}),timeZone:'UTC'}).format(new Date(s.slice(0,10)+'T12:00:00Z')):'—';
-const VIEWS={overview:'Market brief',markets:'Market rotation',relative:'Relative performance',rates:'Rates & credit',universe:'Instrument universe'};
+const VIEWS={overview:'Market brief',markets:'Market rotation',relative:'Relative performance',strategies:'Strategy monitor',rates:'Rates & credit',universe:'Instrument universe'};
 const SECTORS={XLK:'Technology',XLF:'Financials',XLV:'Health care',XLE:'Energy',XLC:'Communication',XLY:'Discretionary',XLP:'Staples',XLI:'Industrials',XLB:'Materials',XLU:'Utilities',XLRE:'Real estate'};
 const NAMES={IVV:'S&P 500',ACWI:'Global equities',URTH:'Developed markets',IEMG:'Emerging markets',IXUS:'Global ex-US',TLT:'20+Y Treasuries',SHY:'1–3Y Treasuries',IEF:'7–10Y Treasuries',SHV:'0–1Y Treasuries',SGOV:'0–3M Treasuries',BIL:'1–3M T-bills',GLD:'Gold',IAU:'Gold',SLV:'Silver',UUP:'US dollar',HYG:'US high yield',LQD:'US investment grade',AGG:'US aggregate bonds',RSP:'S&P 500 equal weight',QQQ:'Nasdaq-100',QQQE:'Nasdaq-100 equal weight',MTUM:'US momentum',QUAL:'US quality',VLUE:'US value factor',USMV:'US minimum volatility',SIZE:'US size factor',LRGF:'US multifactor',SPHB:'US high beta',HDV:'US high dividend',IWF:'Large-cap growth',IWD:'Large-cap value',IWM:'US small caps',IWB:'US large caps',PSP:'Listed private equity',BIZD:'Listed BDCs',XES:'Oil & gas services',IEZ:'Oil equipment & services',XOP:'Oil & gas exploration',IEO:'Oil & gas producers',XBI:'Biotechnology',IBB:'Biotechnology',SOXX:'Semiconductors',SMH:'Semiconductors',KRE:'Regional banks',KBE:'Banks',ITA:'Aerospace & defense',XAR:'Aerospace & defense',XHB:'Homebuilders',ITB:'Home construction',QYLD:'Nasdaq covered calls',XYLD:'S&P 500 covered calls',RYLD:'Russell 2000 covered calls',DBMF:'Managed futures',KMLM:'Systematic trend',REET:'Global REITs',IGF:'Global infrastructure',IEV:'Europe',EWJ:'Japan'};
 function nameFor(u){return SECTORS[u.symbol]||NAMES[u.symbol]||(u.fundName||u.benchmark||u.symbol).replace(/^(?:State Street[® ]*|iShares\s+|Invesco\s+|WisdomTree\s+|Global X\s+|VanEck\s+|SPDR[® ]*|KraneShares\s+|abrdn\s+)+/g,'').replace(/[®™℠]/g,'').replace(/\s+(?:ETF|Fund|Trust)\b/g,'').replace(/\s+/g,' ').trim()}
-const state={data:null,rows:[],pairs:[],asOf:null,period:'MTD',range:'YTD',leadRange:'3M',view:'overview',query:'',category:'all',status:'daily',sort:'mtd',direction:-1,limit:45,refreshing:false,stars:new Set()};
+const STRATEGY_NAMES={CTA:'Systematic futures',WTMF:'Diversified futures',BTAL:'Market-neutral anti-beta',TAIL:'Tail-risk hedge',MNA:'Merger arbitrage',QAI:'Hedge multi-strategy',NTSX:'US efficient core',RPAR:'Risk parity',JEPI:'Active equity income',JEPQ:'Nasdaq equity income',ALLW:'All Weather',AOA:'Global 80/20',AOR:'Global 60/40',AOM:'Global 40/60',WTPI:'Equity put-write'};
+const state={data:null,rows:[],pairs:[],leads:[],leadKey:null,asOf:null,period:'MTD',range:'YTD',leadRange:'3M',view:'overview',query:'',category:'all',strategy:'all',status:'daily',sort:'mtd',direction:-1,limit:45,refreshing:false,stars:new Set()};
 try{state.stars=new Set(JSON.parse(localStorage.getItem('macro-lens-stars')||'[]').filter(x=>typeof x==='string'))}catch{}
 let chartId=0;
 function lineChart(id,items,{range='3M',height=240,raw=false,unit='',shade=false,legend=true,dark=false}={}){
@@ -80,6 +81,7 @@ function reanalyze(){
  state.data.universe=state.data.universe.map(u=>({...u,name:nameFor(u)}));
  state.asOf=getAsOf(state.data.series);state.rows=computeRows(state.data.universe,state.data.series,state.period);
  state.pairs=pairInsights(state.data.series,state.period,state.asOf);
+ state.leads=selectLeadSignals(state.pairs);
 }
 function readURL(){
  const u=new URL(window.location.href),p=u.searchParams;
@@ -88,12 +90,13 @@ function readURL(){
  state.range=['1M','3M','YTD'].includes(p.get('range'))?p.get('range'):'YTD';
  state.query=p.get('q')||'';
  state.category=state.data.universe.some(r=>r.category===p.get('category'))?p.get('category'):'all';
+ state.strategy=p.get('strategy')&&state.data.universe.some(r=>r.strategyGroup===p.get('strategy'))?p.get('strategy'):'all';
  state.status=['daily','all','ready','reference','starred'].includes(p.get('coverage'))?p.get('coverage'):'daily';
  state.sort=['wtd','mtd','ytd','sigma'].includes(p.get('sort'))?p.get('sort'):state.period.toLowerCase();
 }
 function syncURL(push=false){
  const u=new URL(window.location.href);u.hash=state.view;
- for(const [k,v,def] of [['period',state.period,'MTD'],['range',state.range,'YTD'],['q',state.query,''],['category',state.category,'all'],['coverage',state.status,'daily'],['sort',state.sort,state.period.toLowerCase()]]){
+ for(const [k,v,def] of [['period',state.period,'MTD'],['range',state.range,'YTD'],['q',state.query,''],['category',state.category,'all'],['strategy',state.strategy,'all'],['coverage',state.status,'daily'],['sort',state.sort,state.period.toLowerCase()]]){
   if(v===def)u.searchParams.delete(k);else u.searchParams.set(k,v);
  }
  if(push)window.history.pushState({},'',u);else window.history.replaceState({},'',u);
@@ -107,10 +110,11 @@ function navigate(view,push=true){
 }
 function render(){
  if(!state.asOf)return;
- const ready=state.rows.filter(r=>r.ready),sectors=ready.filter(r=>r.category==='sector_us');
+ const ready=state.rows.filter(r=>r.ready),sectors=ready.filter(r=>r.category==='sector_us'),daily=state.rows.filter(r=>r.eligible).length;
  $('#asof-top').textContent=`As of ${date(state.asOf)}`;
- $('#coverage-footer').textContent=`${ready.length} / 235 comparable instruments`;
- $('#stats').innerHTML=`<div class="stat"><span class="stat-label">S&P 500</span><span class="stat-value ${signClass(state.rows.find(r=>r.symbol==='IVV')?.stats?.return)}">${pct(state.rows.find(r=>r.symbol==='IVV')?.stats?.return)}<small>${state.period}</small></span></div><div class="stat"><span class="stat-label">Sectors positive</span><span class="stat-value">${sectors.filter(r=>r.stats.return>0).length}<small>/ ${sectors.length}</small></span></div><div class="stat"><span class="stat-label">Relative ≥2σ</span><span class="stat-value">${state.pairs.filter(p=>p.score>=2).length}<small>/ ${state.pairs.length} pairs</small></span></div><div class="stat"><span class="stat-label"><i class="coverage-dot"></i>Coverage</span><span class="stat-value">${ready.length}<small>/ 235</small></span></div>`;
+ $('#coverage-footer').textContent=`${ready.length} / ${daily} comparable instruments`;
+ $('#universe-nav-count').textContent=state.rows.length;
+ $('#stats').innerHTML=`<div class="stat"><span class="stat-label">S&P 500</span><span class="stat-value ${signClass(state.rows.find(r=>r.symbol==='IVV')?.stats?.return)}">${pct(state.rows.find(r=>r.symbol==='IVV')?.stats?.return)}<small>${state.period}</small></span></div><div class="stat"><span class="stat-label">Sectors positive</span><span class="stat-value">${sectors.filter(r=>r.stats.return>0).length}<small>/ ${sectors.length}</small></span></div><div class="stat"><span class="stat-label">Relative ≥2σ</span><span class="stat-value">${state.pairs.filter(p=>p.score>=2).length}<small>/ ${state.pairs.length} pairs</small></span></div><div class="stat"><span class="stat-label"><i class="coverage-dot"></i>Coverage</span><span class="stat-value">${ready.length}<small>/ ${daily}</small></span></div>`;
  $('#benchmark-tape').innerHTML=[['IVV','US equities'],['TLT','US Treasuries'],['GLD','Gold'],['UUP','US dollar'],['VIX','Equity volatility']].map(([s,label])=>{
   const r=state.rows.find(r=>r.symbol===s&&r.eligible),v=s==='VIX'?indicatorChange(state.data.risk.VIX,state.period):null;
   return `<button class="benchmark-item" data-benchmark="${s}"><span><span class="benchmark-name">${label}</span><span class="benchmark-symbol">${s}</span></span><span class="benchmark-return ${s==='VIX'?'':signClass(r?.stats?.return)}">${s==='VIX'?number(v?.value):pct(r?.stats?.return)}<small>${s==='VIX'?'index level':state.period}</small></span></button>`;
@@ -128,11 +132,17 @@ function renderView(){
  if(state.view==='overview'){renderLead();renderHero();renderMovers();renderFocus();renderRibbon()}
  else if(state.view==='markets')renderMarkets();
  else if(state.view==='relative')renderPairs();
+ else if(state.view==='strategies')renderStrategies();
  else if(state.view==='rates')renderRisk();
  else if(state.view==='universe'){renderTable();renderReferences()}
 }
 function renderLead(){
- const p=state.pairs[0],story=$('#lead-story');story.hidden=!p;if(!p)return;
+ const p=state.leads.find(p=>`${p.a}/${p.b}`===state.leadKey)||state.leads[0],story=$('#lead-story');story.hidden=!p;
+ $('#lead-count').textContent=`${state.leads.length} themes · ${state.period}`;
+ $('#lead-signals').innerHTML=state.leads.map((signal,i)=>`<button class="lead-signal ${p?.a===signal.a&&p?.b===signal.b?'active':''}" data-lead="${i}" aria-pressed="${p?.a===signal.a&&p?.b===signal.b}"><span class="lead-signal-top"><span>${escape(signal.family)}</span><span>${signal.score>=2?'≥2σ move':'Relative deviation'}</span></span><span class="lead-signal-title">${escape(signal.headline)}</span><span class="lead-signal-bottom"><strong>${number(Math.abs(signal.stats.gap),2)}<small> pp</small></strong><span>${number(signal.score,1)}σ <span aria-hidden="true">↗</span></span></span></button>`).join('')||'<div class="chart-empty">No comparable relative signals for this window.</div>';
+ $('#lead-signals').querySelectorAll('[data-lead]').forEach(b=>b.addEventListener('click',()=>{const s=state.leads[Number(b.dataset.lead)];state.leadKey=`${s.a}/${s.b}`;renderLead()}));
+ if(!p)return;
+ state.leadKey=`${p.a}/${p.b}`;
  const positive=p.stats.gap>=0;
  const winner=positive?p.a:p.b,laggard=positive?p.b:p.a,colors=['#edcb80','#8abed0'];
  $('#lead-eyebrow').textContent=p.score>=2?'Lead relative signal':'Largest relative deviation';
@@ -158,7 +168,7 @@ function renderMovers(){
  $('#movers-list').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>openDetail(b.dataset.symbol)));
 }
 function renderFocus(){
- const selected=state.pairs.slice(1,3).map(p=>({kind:'pair',title:p.title,a:p.a,b:p.b,value:p.stats.gap,unit:'pp',score:p.stats.sigma,pair:p}));
+ const selected=state.pairs.filter(p=>!state.leads.some(l=>l.a===p.a&&l.b===p.b)).slice(0,2).map(p=>({kind:'pair',title:p.title,a:p.a,b:p.b,value:p.stats.gap,unit:'pp',score:p.stats.sigma,pair:p}));
  const mover=unusual()[0];
  if(mover){const parents={XES:'XLE',IEZ:'XLE',XOP:'XLE',IEO:'XLE',XBI:'XLV',IBB:'XLV',SOXX:'XLK',SMH:'XLK',KRE:'XLF',KBE:'XLF',QYLD:'QQQ',XYLD:'IVV',RYLD:'IWM'};selected.push({kind:'asset',title:mover.name,a:mover.symbol,b:parents[mover.symbol]||(mover.category==='fixed_income'?'AGG':'ACWI'),value:mover.stats.return,unit:'%',score:mover.stats.sigma,row:mover})}
  $('#insight-cards').innerHTML=selected.map((c,i)=>`<article class="panel focus-card"><div class="focus-card-header"><h3><button class="chart-title-button" data-focus="${i}">${escape(c.title)}</button></h3>${sigma(c.score)}</div><div class="focus-metric"><strong class="${signClass(c.value)}">${signed(c.value)}${c.unit==='%'?'%':''}</strong><span>${c.unit==='pp'?'pp spread':state.period+' return'}</span></div><div id="focus-chart-${i}" class="line-chart"></div><div class="focus-footer"><span>${state.period} ${c.kind==='pair'?'relative move':'unusual move'}</span><span>3M context</span></div></article>`).join('');
@@ -183,6 +193,23 @@ function renderMarkets(){
 function renderPairs(){
  $('#pair-grid').innerHTML=state.pairs.map((p,i)=>`<article class="panel pair-panel"><div class="panel-header"><h2><button class="chart-title-button" data-pair="${i}">${escape(p.title)}</button></h2>${sigma(p.stats.sigma)}</div><div class="focus-metric"><strong class="${signClass(p.stats.gap)}">${signed(p.stats.gap)}</strong><span>pp / ${state.period}</span></div><div class="line-chart" id="pair-chart-${i}"></div></article>`).join('');
  state.pairs.forEach((p,i)=>{lineChart('pair-chart-'+i,[{symbol:p.a,label:p.a},{symbol:p.b,label:p.b}],{range:'3M',height:190});$(`[data-pair="${i}"]`).addEventListener('click',()=>openPair(p))});
+}
+function renderStrategies(){
+ const all=state.rows.filter(r=>r.eligible&&r.strategyGroup),groups=[...new Set(all.map(r=>r.strategyGroup))];
+ const shown=all.filter(r=>state.strategy==='all'||r.strategyGroup===state.strategy);
+ $('#strategy-count').textContent=`${shown.length} strategy ETFs · ${all.filter(r=>r.ready).length} / ${all.length} comparable`;
+ $('#strategy-filters').innerHTML=['all',...groups].map(g=>`<button data-strategy="${escape(g)}" aria-pressed="${g===state.strategy}" class="${g===state.strategy?'selected':''}">${g==='all'?'All strategies':escape(g)}</button>`).join('');
+ $('#strategy-filters').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{state.strategy=b.dataset.strategy;renderStrategies();syncURL()}));
+ $('#strategy-grid').innerHTML=groups.filter(g=>shown.some(r=>r.strategyGroup===g)).map(g=>{
+  const rows=shown.filter(r=>r.strategyGroup===g).sort((a,b)=>(b.stats?.return??-Infinity)-(a.stats?.return??-Infinity));
+  return `<article class="panel strategy-panel"><div class="panel-header"><h2>${escape(g)}</h2><span class="panel-meta">${rows.length} ETFs</span></div><div class="strategy-columns"><span>Instrument</span><span>WTD</span><span>MTD</span><span>YTD</span></div>${rows.map(r=>`<button class="strategy-row" data-strategy-symbol="${r.symbol}"><span class="strategy-identity"><b>${r.symbol}</b><span>${escape(STRATEGY_NAMES[r.symbol]||r.name)}</span><small>${r.relationship.startsWith('issuer_declared_tracking')?'Index ETF':'Active ETF'} · ${date(r.asOf,true)}${r.ready?'':' · '+escape(statusLabel(r))}</small></span>${['wtd','mtd','ytd'].map(k=>`<span class="${signClass(r[k])}">${pct(r[k],1)}</span>`).join('')}</button>`).join('')}</article>`;
+ }).join('');
+ $('#strategy-grid').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>openDetail(b.dataset.strategySymbol)));
+ const strategySymbols=new Set(shown.map(r=>r.symbol));
+ const pairs=selectLeadSignals(state.pairs.filter(p=>strategySymbols.has(p.a)),4);
+ $('#strategy-pairs').innerHTML=pairs.map((p,i)=>`<article class="panel pair-panel"><div class="panel-header"><h2><button class="chart-title-button" data-strategy-pair="${i}">${escape(p.title)}</button></h2>${sigma(p.stats.sigma)}</div><div class="focus-metric"><strong class="${signClass(p.stats.gap)}">${signed(p.stats.gap)}</strong><span>pp / ${state.period}</span></div><div class="line-chart" id="strategy-chart-${i}"></div></article>`).join('')||'<div class="chart-empty">No comparable strategy pair for this window.</div>';
+ pairs.forEach((p,i)=>{lineChart('strategy-chart-'+i,[{symbol:p.a,label:p.a},{symbol:p.b,label:p.b}],{range:'3M',height:190});$(`[data-strategy-pair="${i}"]`).addEventListener('click',()=>openPair(p))});
+ $('#strategy-references').innerHTML=state.rows.filter(r=>r.category==='hedge_fund_benchmark').map(r=>`<div class="private-ref"><a href="${safeUrl(r.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escape(r.benchmark)} ↗</a><small>Reference only</small></div>`).join('');
 }
 function renderRisk(){
  const defs=[['VIX','VIX'],['DGS2','2Y Treasury'],['DGS10','10Y Treasury'],['BAMLH0A0HYM2','High-yield OAS'],['DFII10','10Y real yield']];
@@ -281,7 +308,7 @@ async function refreshData({automatic=false}={}){
 }
 function wire(){
  $$('a[href^="#"]').forEach(a=>{if(Object.hasOwn(VIEWS,a.hash?.slice(1)))a.addEventListener('click',e=>{if(e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;e.preventDefault();navigate(a.hash.slice(1))})});
- $('#periods').addEventListener('click',e=>{const b=e.target.closest('[data-period]');if(!b)return;state.period=b.dataset.period;if(state.sort!=='sigma')state.sort=state.period.toLowerCase();reanalyze();render();syncURL()});
+ $('#periods').addEventListener('click',e=>{const b=e.target.closest('[data-period]');if(!b)return;state.period=b.dataset.period;state.leadKey=null;if(state.sort!=='sigma')state.sort=state.period.toLowerCase();reanalyze();render();syncURL()});
  $('#hero-ranges').addEventListener('click',e=>{const b=e.target.closest('[data-range]');if(!b)return;state.range=b.dataset.range;renderHero();syncURL()});
  $('#lead-ranges').addEventListener('click',e=>{const b=e.target.closest('[data-range]');if(!b)return;state.leadRange=b.dataset.range;renderLead()});
  $('#refresh').onclick=()=>refreshData();
@@ -308,7 +335,7 @@ function wire(){
 async function boot(){
  try{
   const response=await fetch('/api/snapshot');if(!response.ok)throw Error('Snapshot unavailable');state.data=await response.json();
-  try{const c=JSON.parse(localStorage.getItem('macro-lens-snapshot')||'null');if(c?.methodologyVersion===state.data.methodologyVersion&&(c.lastCheckedAt||c.generatedAt)>state.data.generatedAt&&c.universe?.length===259&&Object.keys(c.series||{}).length>=200&&getAsOf(c.series)>=getAsOf(state.data.series))state.data=c}catch{}
+  try{const c=JSON.parse(localStorage.getItem('macro-lens-snapshot')||'null');if(c?.methodologyVersion===state.data.methodologyVersion&&c.universeVersion===state.data.universeVersion&&(c.lastCheckedAt||c.generatedAt)>state.data.generatedAt&&c.universe?.length===state.data.universe.length&&state.data.universe.every(u=>c.universe.some(v=>v.id===u.id))&&Object.keys(c.series||{}).length>=state.data.universe.filter(u=>u.eligible).length&&getAsOf(c.series)>=getAsOf(state.data.series))state.data=c}catch{}
   readURL();reanalyze();wire();render();navigate(state.view,false);
   window.macroLens={get state(){return {period:state.period,view:state.view,asOf:state.asOf,ready:state.rows.filter(r=>r.ready).length,total:state.data.universe.length}}};
   refreshData({automatic:true});
